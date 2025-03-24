@@ -1,0 +1,25 @@
+# Virtual environment
+venv/
+.env
+*.pyc
+__pycache__/
+
+# Logs
+logs/
+*.log
+
+# Database
+*.sqlite3
+*.db
+
+# Ignore IDE/editor settings
+.vscode/
+.idea/
+*.swp
+
+# Python dependencies
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Ignore Uvicorn cache
+*.pid
