@@ -10,15 +10,12 @@ import uvicorn
 load_dotenv()
 api_key = os.getenv("GOOGLE_API_KEY")
 mongo_url = os.getenv("MONGO_DB_URI")
+port = int(os.getenv("PORT", 10000))  # Default to 10000 if PORT is not set
 
 # Initialize MongoDB client
-try:
-    client = MongoClient(mongo_url)
-    db = client["chat_memory"]  # Database name
-    collection = db["conversations"]  # Collection name
-    print("✅ Connected to MongoDB")
-except Exception as e:
-    print(f"❌ MongoDB Connection Error: {e}")
+client = MongoClient(mongo_url)
+db = client["chat_memory"]  # Database name
+collection = db["conversations"]  # Collection name
 
 # Initialize FastAPI
 app = FastAPI()
@@ -71,7 +68,6 @@ def chat(chat_input: ChatInput = Body(...)):
     except Exception as e:
         return {"error": str(e)}
 
-# Run FastAPI on Render-compatible PORT
+# Explicitly bind to 0.0.0.0 and the PORT from environment variables
 if __name__ == "__main__":
-    port = int(os.getenv("PORT", 10000))  # Render assigns PORT dynamically
     uvicorn.run(app, host="0.0.0.0", port=port)
