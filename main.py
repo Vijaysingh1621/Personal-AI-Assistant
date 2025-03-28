@@ -4,6 +4,7 @@ from pydantic import BaseModel
 from dotenv import load_dotenv
 from langchain_google_genai import ChatGoogleGenerativeAI
 from pymongo import MongoClient
+import uvicorn
 
 # Load environment variables
 load_dotenv()
@@ -11,9 +12,13 @@ api_key = os.getenv("GOOGLE_API_KEY")
 mongo_url = os.getenv("MONGO_DB_URI")
 
 # Initialize MongoDB client
-client = MongoClient(mongo_url)
-db = client["chat_memory"]  # Database name
-collection = db["conversations"]  # Collection name
+try:
+    client = MongoClient(mongo_url)
+    db = client["chat_memory"]  # Database name
+    collection = db["conversations"]  # Collection name
+    print("✅ Connected to MongoDB")
+except Exception as e:
+    print(f"❌ MongoDB Connection Error: {e}")
 
 # Initialize FastAPI
 app = FastAPI()
@@ -65,3 +70,8 @@ def chat(chat_input: ChatInput = Body(...)):
         return {"response": response_text}
     except Exception as e:
         return {"error": str(e)}
+
+# Run FastAPI on Render-compatible PORT
+if __name__ == "__main__":
+    port = int(os.getenv("PORT", 10000))  # Render assigns PORT dynamically
+    uvicorn.run(app, host="0.0.0.0", port=port)
