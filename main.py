@@ -70,4 +70,5 @@ def chat(chat_input: ChatInput = Body(...)):
 
 # Explicitly bind to 0.0.0.0 and the PORT from environment variables
 if __name__ == "__main__":
+    port = int(os.getenv("PORT", 8000))  # Default to 8000 if PORT is not set
     uvicorn.run(app, host="0.0.0.0", port=port)
