@@ -4,6 +4,7 @@ from pydantic import BaseModel
 from dotenv import load_dotenv
 from langchain_google_genai import ChatGoogleGenerativeAI
 from pymongo import MongoClient
+from contextlib import asynccontextmanager
 import uvicorn
 
 # Load environment variables
@@ -12,34 +13,48 @@ api_key = os.getenv("GOOGLE_API_KEY")
 mongo_url = os.getenv("MONGO_DB_URI")
 port = int(os.getenv("PORT", 10000))  # Default to 10000 if PORT is not set
 
-# Initialize MongoDB client
-client = MongoClient(mongo_url)
-db = client["chat_memory"]  # Database name
-collection = db["conversations"]  # Collection name
+# Global shared resources (initialized in lifespan)
+client = None
+db = None
+collection = None
+llm = None
 
-# Initialize FastAPI
-app = FastAPI()
+# FastAPI startup optimization
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    global client, db, collection, llm
 
-# Initialize Gemini AI
-llm = ChatGoogleGenerativeAI(
-    model="gemini-1.5-flash",
-    google_api_key=api_key,
-    temperature=0.7
-)
+    # Initialize MongoDB and LLM once on server start
+    client = MongoClient(mongo_url)
+    db = client["chat_memory"]
+    collection = db["conversations"]
 
-# Define request model
+    llm = ChatGoogleGenerativeAI(
+        model="gemini-1.5-flash",  # faster and cost-effective
+        google_api_key=api_key,
+        temperature=0.7
+    )
+
+    print("✅ AI model and DB initialized")
+    yield
+    # Optionally close resources here on shutdown
+
+# Initialize FastAPI with lifespan handler
+app = FastAPI(lifespan=lifespan)
+
+# Pydantic input model
 class ChatInput(BaseModel):
     user_input: str
-    user_id: str  # Unique identifier for users
+    user_id: str
 
 @app.get("/")
 def home():
-    return {"message": "Personal AI Assistant is running!"}
+    return {"message": "🚀 Personal AI Assistant is running!"}
 
 @app.post("/chat/")
 def chat(chat_input: ChatInput = Body(...)):
     user_input = chat_input.user_input
-    user_id = chat_input.user_id  # Get user_id from request
+    user_id = chat_input.user_id
 
     if not user_input:
         return {"error": "No user input provided"}
@@ -49,14 +64,14 @@ def chat(chat_input: ChatInput = Body(...)):
     chat_history = history_doc["messages"] if history_doc else []
 
     try:
-        # Generate AI response
+        # Build prompt with memory
         prompt = f"Previous conversation: {chat_history}\nUser: {user_input}"
         response = llm.invoke(prompt)
 
         # Extract response text
         response_text = response.content if hasattr(response, 'content') else str(response)
 
-        # Update conversation history in MongoDB
+        # Save to MongoDB
         chat_history.append({"user": user_input, "bot": response_text})
         collection.update_one(
             {"user_id": user_id},
@@ -68,7 +83,6 @@ def chat(chat_input: ChatInput = Body(...)):
     except Exception as e:
         return {"error": str(e)}
 
-# Explicitly bind to 0.0.0.0 and the PORT from environment variables
+# Local run config
 if __name__ == "__main__":
-    port = int(os.getenv("PORT", 8000))  # Default to 8000 if PORT is not set
     uvicorn.run("main:app", host="0.0.0.0", port=port, reload=True)
